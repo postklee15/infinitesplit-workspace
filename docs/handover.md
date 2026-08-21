@@ -272,18 +272,19 @@ Admin Postgres `markets WHERE is_active = true`를 1분마다 읽고, 빗썸 pub
 
 ## 7. 배포 메모
 
-| 구성 | 방법 |
-|------|------|
-| 고객 웹 | `infinitesplit-web-dashboard`: `npm run build` + Firebase Hosting. `deploy:auto`는 main 푸시까지 |
-| Admin | VM에서 `next build` + PM2 `ecosystem.config.js`. nginx `deploy/nginx.conf` |
-| Relay | `socket-relay-service/deploy/deploy.sh` (PM2 + nginx + certbot) |
-| 봇 | Bot Manager가 ecosystem에 항목을 붙이고 `pm2 start --only isplit-{botId}` |
-| Ticker | `install.sh` 후 `pm2 start ecosystem.config.js` |
-| Functions | `asia-northeast3`, runtime nodejs22 (`firebase.json`) |
+**Git push로 돌아가는 CD는 없다.** 2026-08-21 GitHub API: 다섯 레포 모두 `actions/workflows` 0, runs 0, `.github` 없음, Deployments 0, Environments 0, repo webhooks 0.
 
-CI(GitHub Actions) 파일은 이 clone에 보이지 않는다. 스토어 AAB/APK/IPA 파이프라인 없음 (웹).
+| 레포 | CD (push→배포) | 실제 배포 |
+|------|----------------|-----------|
+| `infinitesplit-workspace` | 없음 | 문서만. 배포 산출물 없음 |
+| `infinitesplit-web-dashboard` | 없음 | **로컬** `npm run deploy:auto` → `firebase deploy` 후 `main` 커밋. Firebase 콘솔 GitHub 연동도 없음(Deployments 0) |
+| `infinitesplit` | 없음 | VM에서 PM2. Bot Manager는 git CD가 아니라 런타임 프로비저닝. `Dockerfile`/`docker-compose.yml`은 수동. relay는 `socket-relay-service/deploy/deploy.sh`를 **SSH 후 실행** |
+| `infinitesplit-admin` | 없음 | VM `next build` + PM2 `ecosystem.config.js` + nginx. `package.json`에 deploy 스크립트 없음. README의 Vercel은 create-next-app 잔재 |
+| `infinitesplit-ticker` | 없음 | `install.sh`가 로컬에 ecosystem/.env 만들고 `pm2 start`를 **사람이** 실행 |
 
-에이전트에서 네이티브 스토어 빌드 금지 규칙은 이 제품에도 적용되지만, 현재 산출물은 웹이다.
+Functions는 대시보드 `firebase.json`에 들어 있으므로 `deploy:auto`의 `firebase deploy`(타깃 미지정) 때 Hosting과 같이 나갈 수 있다. 이것도 로컬 CLI이지 GitHub Actions가 아니다.
+
+스토어 AAB/APK/IPA 파이프라인 없음 (웹). 에이전트에서 네이티브 스토어 빌드 금지.
 
 ---
 
