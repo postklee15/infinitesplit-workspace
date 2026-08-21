@@ -231,6 +231,8 @@ Vite + React 19 + Tailwind 4 + Zustand + TanStack Query + Socket.IO. Firebase Ho
 
 페이지: `/dashboard` 홈, `/split` 그리드 제어, `/ledger`, `/pnl`, `/instruments`, `/volume` 볼륨 봇, `/settings`, `/guide`. 미승인은 Access Pending 화면.
 
+`/split` 요약 **롱 보유** / **숏 활성** 카드는 그리드 개수 + holding/active `quantity` 합(체결 수량). 패치 PR https://github.com/postklee15/infinitesplit-web-dashboard/pull/1. umbrella SHA는 머지 전 `e1ed03a`. Hosting은 `deploy:auto`.
+
 연결 배너: 릴레이 인증 실패 / 릴레이 disconnect / 봇 오프라인(`bot_status_changed`).
 
 Firestore 규칙: `users/{uid}`는 본인만. `managers` 읽기만. `adminUsers`는 본인 get/create, 수정 삭제 금지.
@@ -333,6 +335,7 @@ Functions는 대시보드 `firebase.json`에 들어 있으므로 `deploy:auto`�
 
 ### Next (요청 오기 전 구현 금지)
 
+- **infinitesplit-web-dashboard PR #1 머지 + `deploy:auto`.** 스플릿 카드 수량 합. 그다음 umbrella SHA.
 - **infinitesplit-ticker PR #1 머지 + VM `pm2 restart`.** 그다음 umbrella 서브모듈 SHA.
 - GitHub Actions CD (웹 Hosting, 또는 VM pull+pm2). 요청 전 만들지 않음.
 - Provisioner `DRY_RUN` 불일치 수정 (운영 의도가 dry-run인지 live인지 확인 후).
