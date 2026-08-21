@@ -29,7 +29,7 @@ Umbrella `.gitmodules` 기준. Owner는 `postklee15` (org `splitinvest-devteam` 
 | `infinitesplit/` | https://github.com/postklee15/infinitesplit | `c5d7f62` 2026-07-31 | Volume Generator를 고객 대시보드로 이전 | **엔진·중첩 서비스** |
 | `infinitesplit-web-dashboard/` | https://github.com/postklee15/infinitesplit-web-dashboard | `e1ed03a` 2026-07-31 | chore: deploy v0.0.97 | **고객 UI** |
 | `infinitesplit-admin/` | https://github.com/postklee15/infinitesplit-admin | `aa99a3c` 2026-07-31 | Volume Generator (TWAP) UI | **운영 콘솔** |
-| `infinitesplit-ticker/` | https://github.com/postklee15/infinitesplit-ticker | `420c340` 2026-05-26 | MasterTicker compiled files | **시세** |
+| `infinitesplit-ticker/` | https://github.com/postklee15/infinitesplit-ticker | `420c340` 2026-05-26 (패치 PR [#1](https://github.com/postklee15/infinitesplit-ticker/pull/1) 미머지) | MasterTicker compiled files | **시세** |
 
 `infinitesplit` **한 레포 안에** 별도 git이 아닌 중첩 서비스가 있다.
 
@@ -253,9 +253,9 @@ Postgres 테이블 (`scripts/*.sql`): `trades`, `bot_snapshots`, `daily_snapshot
 
 Admin Postgres `markets WHERE is_active = true`를 1분마다 읽고, 빗썸 public WS + 바이낸스 선물 public WS를 연 뒤 Redis에 시세·EMA·RSI를 publish. 봇은 구독만. 마켓이 바뀌면 WS 재연결. 워치독으로 stale 재접속.
 
-설치: `install.sh`가 ecosystem·`.env` 템플릿. Redis는 `bind 0.0.0.0` + requirepass + **봇 서버 IP만 6379**. 컴파일된 `.js`가 커밋되어 있다 (`420c340`).
+설치: `install.sh`가 ecosystem·`.env` 템플릿. Redis는 `bind 0.0.0.0` + requirepass + **봇 서버 IP만 6379**. 컴파일된 `.js`가 커밋되어 있다. umbrella 서브모듈 SHA는 아직 `420c340`.
 
-**주기적 시세 공백:** `MasterTicker`가 30초 무수신이면 `reconnectAll()`로 빗썸·바이낸스를 **같이** 끊는다. 바이낸스는 `/market/ws/btcusdt@ticker/ethusdt@ticker`(공식 combined는 `/market/stream?streams=…`)에 붙고, 수신은 `message.e === '24hrTicker'`만 본다(combined 래핑 `data.e` 누락). 연결만 되고 틱이 없으면 워치독이 ~30초마다 빗썸까지 재연결한다. `close` 핸들러의 5초 `setTimeout`과 `start()`+`updateMarkets` 이중 접속이 소켓을 누수시킨다. 핑이 없고 URL은 레거시 `wss://pubwss.bithumb.com/pub/ws`(공식 public은 `wss://ws-api.bithumb.com/websocket/v1`). 엔진 private WS는 30초 ping을 보낸다. 상세 [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]].
+**주기적 시세 공백:** 원인(구 `main`)은 Watchdog `reconnectAll`, 바이낸스 `/market/ws/` + `message.e`만 파싱, close 타이머 누수, ping 없음, 레거시 `pubwss`. **패치 적용** — https://github.com/postklee15/infinitesplit-ticker/pull/1 (`cursor/ticker-ws-reconnect-e255`). 쪽별 재연결, `/market/stream?streams=` + `data` unwrap, 빗썸 `websocket/v1`, 25초 ping, Redis publish catch. CD 없음. 머지 후 티커 VM `git pull` + `pm2 restart infinitesplit-ticker`. 상세 [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]].
 
 ---
 
@@ -316,7 +316,7 @@ Functions는 대시보드 `firebase.json`에 들어 있으므로 `deploy:auto`�
 7. **Volume Generator**는 실주문 루프다. DRY_RUN이 아닌 봇에서 고객 UI의 시작 버튼이 거래소 주문을 낸다.
 8. **시크릿이 git에 있으면 안 된다.** `bot-manager/.env.production` 같은 파일이 워크트리에 보이면 커밋하지 말고 로테이션 여부를 사람에게 넘긴다. 이 핸드오프에 값을 복사하지 말 것.
 9. **AAB/APK/IPA를 이 VM에서 빌드하지 말 것** (전 제품 규칙). 이 제품은 웹이 본류.
-10. **티커 시세가 주기적으로 멈춤.** Watchdog가 한쪽 무수신 30초면 빗썸+바이낸스를 같이 끊는다. 바이낸스 combined URL/`message.e` 파싱, close 타이머 누수, ping 없음, 레거시 `pubwss`. [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]]
+10. **티커 시세가 주기적으로 멈춤.** 구코드 Watchdog `reconnectAll` + 바이낸스 combined 미파싱. 패치는 https://github.com/postklee15/infinitesplit-ticker/pull/1. 운영 반영은 머지 후 PM2 재시작. [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]]
 
 ---
 
@@ -328,12 +328,12 @@ Functions는 대시보드 `firebase.json`에 들어 있으므로 `deploy:auto`�
 - 멀티봇 + 소켓 릴레이 + 공유 티커 + Admin PG ingest 경로는 코드상 완성.
 - Firestore 백업 복원 경로는 꺼져 있음.
 - **GitHub CD 없음** (Actions/Deployments/hooks 0). 배포는 로컬 CLI·VM SSH.
-- **티커 주기적 시세 공백 (2026-08-21 코드):** `MasterTicker` watchdog `reconnectAll` + 바이낸스 `/market/ws/a@ticker/b@ticker`(combined는 `stream?streams=`) + `message.e`만 파싱 + close 5초 타이머 누수 + ping 없음 + 레거시 `pubwss`. 라이브 로그는 이 VM에 없음. [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]]
+- **티커 주기적 시세 공백:** 패치 PR https://github.com/postklee15/infinitesplit-ticker/pull/1 (`26b2735`). umbrella 서브모듈은 아직 `420c340`. 라이브 적용은 머지 후 티커 VM PM2. [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]]
 - 이 핸드오프가 프로젝트 전체의 인수인계 원본.
 
 ### Next (요청 오기 전 구현 금지)
 
-- **infinitesplit-ticker 재연결/URL/핑 패치** (요청 시 자식 레포에서).
+- **infinitesplit-ticker PR #1 머지 + VM `pm2 restart`.** 그다음 umbrella 서브모듈 SHA.
 - GitHub Actions CD (웹 Hosting, 또는 VM pull+pm2). 요청 전 만들지 않음.
 - Provisioner `DRY_RUN` 불일치 수정 (운영 의도가 dry-run인지 live인지 확인 후).
 - Admin `/volume`을 봇 프록시로 연결하거나 메뉴에서 제거.
