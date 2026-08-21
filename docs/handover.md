@@ -255,6 +255,8 @@ Admin Postgres `markets WHERE is_active = true`를 1분마다 읽고, 빗썸 pub
 
 설치: `install.sh`가 ecosystem·`.env` 템플릿. Redis는 `bind 0.0.0.0` + requirepass + **봇 서버 IP만 6379**. 컴파일된 `.js`가 커밋되어 있다 (`420c340`).
 
+**주기적 시세 공백:** `MasterTicker`가 30초 무수신이면 `reconnectAll()`로 빗썸·바이낸스를 **같이** 끊는다. 바이낸스는 `/market/ws/btcusdt@ticker/ethusdt@ticker`(공식 combined는 `/market/stream?streams=…`)에 붙고, 수신은 `message.e === '24hrTicker'`만 본다(combined 래핑 `data.e` 누락). 연결만 되고 틱이 없으면 워치독이 ~30초마다 빗썸까지 재연결한다. `close` 핸들러의 5초 `setTimeout`과 `start()`+`updateMarkets` 이중 접속이 소켓을 누수시킨다. 핑이 없고 URL은 레거시 `wss://pubwss.bithumb.com/pub/ws`(공식 public은 `wss://ws-api.bithumb.com/websocket/v1`). 엔진 private WS는 30초 ping을 보낸다. 상세 [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]].
+
 ---
 
 ## 6. 데이터
@@ -314,6 +316,7 @@ Functions는 대시보드 `firebase.json`에 들어 있으므로 `deploy:auto`�
 7. **Volume Generator**는 실주문 루프다. DRY_RUN이 아닌 봇에서 고객 UI의 시작 버튼이 거래소 주문을 낸다.
 8. **시크릿이 git에 있으면 안 된다.** `bot-manager/.env.production` 같은 파일이 워크트리에 보이면 커밋하지 말고 로테이션 여부를 사람에게 넘긴다. 이 핸드오프에 값을 복사하지 말 것.
 9. **AAB/APK/IPA를 이 VM에서 빌드하지 말 것** (전 제품 규칙). 이 제품은 웹이 본류.
+10. **티커 시세가 주기적으로 멈춤.** Watchdog가 한쪽 무수신 30초면 빗썸+바이낸스를 같이 끊는다. 바이낸스 combined URL/`message.e` 파싱, close 타이머 누수, ping 없음, 레거시 `pubwss`. [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]]
 
 ---
 
@@ -324,10 +327,14 @@ Functions는 대시보드 `firebase.json`에 들어 있으므로 `deploy:auto`�
 - 4 서브모듈 `main` 포인터가 umbrella에 고정됨. 고객 대시보드 v0.0.97, 엔진은 Volume Generator를 고객 UI로 옮긴 커밋.
 - 멀티봇 + 소켓 릴레이 + 공유 티커 + Admin PG ingest 경로는 코드상 완성.
 - Firestore 백업 복원 경로는 꺼져 있음.
+- **GitHub CD 없음** (Actions/Deployments/hooks 0). 배포는 로컬 CLI·VM SSH.
+- **티커 주기적 시세 공백 (2026-08-21 코드):** `MasterTicker` watchdog `reconnectAll` + 바이낸스 `/market/ws/a@ticker/b@ticker`(combined는 `stream?streams=`) + `message.e`만 파싱 + close 5초 타이머 누수 + ping 없음 + 레거시 `pubwss`. 라이브 로그는 이 VM에 없음. [[10-shared/gotchas/infinitesplit-ticker-periodic-stall]]
 - 이 핸드오프가 프로젝트 전체의 인수인계 원본.
 
 ### Next (요청 오기 전 구현 금지)
 
+- **infinitesplit-ticker 재연결/URL/핑 패치** (요청 시 자식 레포에서).
+- GitHub Actions CD (웹 Hosting, 또는 VM pull+pm2). 요청 전 만들지 않음.
 - Provisioner `DRY_RUN` 불일치 수정 (운영 의도가 dry-run인지 live인지 확인 후).
 - Admin `/volume`을 봇 프록시로 연결하거나 메뉴에서 제거.
 - `proxyToMaster` Functions 폐기 여부.
@@ -338,8 +345,8 @@ Functions는 대시보드 `firebase.json`에 들어 있으므로 `deploy:auto`�
 
 ### Blocked / 이 환경 한계
 
-- 자식 GitHub fetch: HTTPS username 프롬프트, `gh` 없음 → 원격 PR/이슈/추가 커밋을 확인하지 못함.
-- 운영 VM·실 Firestore에 접속하지 않음. 라이브 봇 수, 실제 DRY_RUN 값은 미확인.
+- 자식 GitHub fetch: HTTPS username 프롬프트, `gh` 없음. REST API + `GITHUB_TOKEN`으로는 workflows/runs 조회됨.
+- 운영 VM·실 Firestore에 접속하지 않음. 라이브 봇 수, 실제 DRY_RUN 값은 미확인. Firebase 콘솔의 Hosting GitHub 연동 UI는 API Deployments 0으로 간주.
 - `_knowledge`는 git exclude. 볼트 노트는 에이전트 공유용이고 이 PR에는 `docs/handover.md`만 탄다.
 
 ---
