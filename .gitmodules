@@ -1,0 +1,12 @@
+[submodule "infinitesplit"]
+	path = infinitesplit
+	url = https://github.com/postklee15/infinitesplit
+[submodule "infinitesplit-web-dashboard"]
+	path = infinitesplit-web-dashboard
+	url = https://github.com/postklee15/infinitesplit-web-dashboard
+[submodule "infinitesplit-admin"]
+	path = infinitesplit-admin
+	url = https://github.com/postklee15/infinitesplit-admin
+[submodule "infinitesplit-ticker"]
+	path = infinitesplit-ticker
+	url = https://github.com/postklee15/infinitesplit-ticker
